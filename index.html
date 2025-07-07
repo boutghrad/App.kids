@@ -1,0 +1,504 @@
+import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'قصص الأطفال اليومية',
+      theme: ThemeData(
+        primarySwatch: Colors.amber,
+        fontFamily: 'Cairo',
+        textTheme: TextTheme(
+          headline5: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          bodyText1: TextStyle(fontSize: 18, height: 1.8),
+        ),
+      ),
+      home: HomeScreen(),
+      debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class Story {
+  final String id;
+  final String title;
+  final String imagePath;
+  final String audioPath;
+  final String content;
+  bool isFavorite;
+  bool isPremium;
+
+  Story({
+    required this.id,
+    required this.title,
+    required this.imagePath,
+    required this.audioPath,
+    required this.content,
+    this.isFavorite = false,
+    this.isPremium = false,
+  });
+
+  factory Story.fromJson(Map<String, dynamic> json) {
+    return Story(
+      id: json['id'],
+      title: json['title'],
+      imagePath: json['imagePath'],
+      audioPath: json['audioPath'],
+      content: json['content'],
+      isPremium: json['isPremium'] ?? false,
+    );
+  }
+}
+
+class StoryService {
+  Future<List<Story>> loadStories() async {
+    // في التطبيق الحقيقي، سيتم جلب البيانات من ملف JSON أو API
+    // هنا أمثلة قصص مخزنة محلياً
+    return [
+      Story(
+        id: "1",
+        title: "الأسد والفأر",
+        imagePath: "assets/images/lion_mouse.jpg",
+        audioPath: "assets/audio/lion_mouse.mp3",
+        content: "في غابة بعيدة، عاش أسد قوي وفأر صغير. يومًا ما، وقع الفأر في مخالب الأسد، فتوسل إليه: \"أرجوك يا سيد الغابة، دعني أذهب وسأرد الجميل يوماً ما\". ضحك الأسد واستهزأ به لكنه تركه يذهب. بعد أيام، وقع الأسد في شباك صيادين، فسمع زئيره فأسرع الفأر وقرض الحبال وأنقذه. تعلم الأسد أن الصغير قد يكون مفيدًا، وأن الجميل يُرد بجميل.",
+        isPremium: false,
+      ),
+      Story(
+        id: "2",
+        title: "القطة الذكية",
+        imagePath: "assets/images/smart_cat.jpg",
+        audioPath: "assets/audio/smart_cat.mp3",
+        content: "عاشت قطة ذكية في مزرعة. لاحظت أن الفئران تخاف من الجرس، فربطت جرسًا حول عنقها. في البداية، هربت الفئران عند سماع الجرس. لكن فأرًا صغيرًا قال: \"من سيربط الجرس في القطة؟\" أدركت الفئران أنها فكرة مستحيلة، وعادت تخاف فقط من القطة نفسها. تعلمت القطة أن الفكرة الجيدة تحتاج تنفيذًا ممكنًا.",
+        isPremium: true,
+      ),
+      Story(
+        id: "3",
+        title: "رحلة الأرانب",
+        imagePath: "assets/images/rabbits.jpg",
+        audioPath: "assets/audio/rabbits.mp3",
+        content: "قررت مجموعة من الأرانب الصغيرة السفر إلى الجبل البعيد. حذرتهم الأم: \"الطريق صعب والثعالب خطرة\". لكنهم أصرّوا. في الطريق، تعب أرنوب الصغير، فحمله الآخرون. وعندما هجم ثعلب، اختبأوا في جحر. تعاونوا وعادوا سالمين. تعلموا أن التعاون يجعل المستحيل ممكناً.",
+        isPremium: false,
+      ),
+      Story(
+        id: "4",
+        title: "الصياد والبطة",
+        imagePath: "assets/images/hunter_duck.jpg",
+        audioPath: "assets/audio/hunter_duck.mp3",
+        content: "خرج صياد ليصطاد، فرأى بطة جميلة تسبح في البركة. رفع بندقيته، لكن البطة نظرت إليه بعينين حزينتين. تذكر الصياد أولاده الذين يحبون البط، فوضع بندقيته وقرر ألا يصطادها. عاد إلى بيته وأحضر لأولاده خبزًا لإطعام البط. أصبحوا أصدقاء للبط بدلاً من اصطياده.",
+        isPremium: false,
+      ),
+      Story(
+        id: "5",
+        title: "قصة عن الصدق",
+        imagePath: "assets/images/honesty.jpg",
+        audioPath: "assets/audio/honesty.mp3",
+        content: "وجد أحمد محفظة في الشارع بها نقود كثيرة. رغم حاجته للمال، سلمها للشرطة. عادت المحفظة لمالكها الغني، الذي أعجب بأمانة أحمد. عرض عليه وظيفة في شركته، وبدأ أحمد حياة جديدة. تعلم أن الصدق دائمًا هو أفضل سياسة.",
+        isPremium: true,
+      ),
+      Story(
+        id: "6",
+        title: "قصة عن الشجاعة",
+        imagePath: "assets/images/bravery.jpg",
+        audioPath: "assets/audio/bravery.mp3",
+        content: "كانت سارة تخاف من الظلام. ذات ليلة، سمعت بكاءً في الحديقة. رغم خوفها، أخذت مصباحًا وخرجت. وجدت جارتها الصغيرة قد سقطت من دراجتها. ساعدتها وأخذتها لبيتها. علمتها هذه التجربة أن الشجاعة ليست عدم الخوف، بل التصرف رغم الخوف.",
+        isPremium: false,
+      ),
+    ];
+  }
+}
+
+class AdMobService {
+  static String get bannerAdUnitId {
+    return 'ca-app-pub-3940256099942544/6300978111'; // Test ID
+  }
+
+  static String get interstitialAdUnitId {
+    return "ca-app-pub-3940256099942544/1033173712"; // Test ID
+  }
+
+  static String get rewardedAdUnitId {
+    return "ca-app-pub-3940256099942544/5224354917"; // Test ID
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  @override
+  _HomeScreenState createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  List<Story> stories = [];
+  List<Story> favoriteStories = [];
+  bool isLoading = true;
+  BannerAd? _bannerAd;
+  int storyReadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    loadStories();
+    loadPreferences();
+    _loadBannerAd();
+  }
+
+  Future<void> loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    storyReadCount = prefs.getInt('storyReadCount') ?? 0;
+    final favorites = prefs.getStringList('favorites') ?? [];
+    
+    setState(() {
+      for (var story in stories) {
+        story.isFavorite = favorites.contains(story.id);
+      }
+      favoriteStories = stories.where((s) => s.isFavorite).toList();
+    });
+  }
+
+  Future<void> savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setInt('storyReadCount', storyReadCount);
+    prefs.setStringList('favorites', 
+        stories.where((s) => s.isFavorite).map((s) => s.id).toList());
+  }
+
+  Future<void> loadStories() async {
+    final storyService = StoryService();
+    List<Story> loadedStories = await storyService.loadStories();
+    setState(() {
+      stories = loadedStories;
+      isLoading = false;
+    });
+    loadPreferences();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: AdMobService.bannerAdUnitId,
+      request: AdRequest(),
+      size: AdSize.banner,
+      listener: BannerAdListener(
+        onAdLoaded: (Ad ad) => print('Banner ad loaded.'),
+        onAdFailedToLoad: (Ad ad, LoadAdError error) {
+          ad.dispose();
+          print('Banner ad failed to load: $error');
+        },
+      ),
+    )..load();
+  }
+
+  void _showInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: AdMobService.interstitialAdUnitId,
+      request: AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (InterstitialAd ad) {
+          ad.show();
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          print('InterstitialAd failed to load: $error');
+        },
+      ),
+    );
+  }
+
+  void _showRewardedAd(VoidCallback onReward) {
+    RewardedAd.load(
+      adUnitId: AdMobService.rewardedAdUnitId,
+      request: AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (RewardedAd ad) {
+          ad.show(onUserEarnedReward: (_, __) => onReward());
+        },
+        onAdFailedToLoad: (LoadAdError error) {
+          print('RewardedAd failed to load: $error');
+        },
+      ),
+    );
+  }
+
+  void _handleStoryRead() {
+    setState(() {
+      storyReadCount++;
+    });
+    savePreferences();
+    
+    // عرض إعلان كل 3 قصص
+    if (storyReadCount % 3 == 0) {
+      _showInterstitialAd();
+    }
+  }
+
+  void _toggleFavorite(Story story) {
+    setState(() {
+      story.isFavorite = !story.isFavorite;
+      if (story.isFavorite) {
+        favoriteStories.add(story);
+      } else {
+        favoriteStories.removeWhere((s) => s.id == story.id);
+      }
+    });
+    savePreferences();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('قصص الأطفال اليومية'),
+          bottom: TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.book), 
+              Tab(icon: Icon(Icons.favorite)),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildStoryList(),
+            _buildFavoritesList(),
+          ],
+        ),
+        bottomNavigationBar: _bannerAd != null
+            ? Container(
+                height: _bannerAd!.size.height.toDouble(),
+                width: _bannerAd!.size.width.toDouble(),
+                child: AdWidget(ad: _bannerAd!),
+              )
+            : SizedBox(),
+      ),
+    );
+  }
+
+  Widget _buildStoryList() {
+    if (isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+
+    return ListView.builder(
+      itemCount: stories.length,
+      itemBuilder: (context, index) {
+        return _storyCard(stories[index]);
+      },
+    );
+  }
+
+  Widget _buildFavoritesList() {
+    if (favoriteStories.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.favorite_border, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('لم تقم بإضافة قصص للمفضلة بعد'),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: favoriteStories.length,
+      itemBuilder: (context, index) {
+        return _storyCard(favoriteStories[index]);
+      },
+    );
+  }
+
+  Widget _storyCard(Story story) {
+    return Card(
+      margin: EdgeInsets.all(8),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () {
+          if (story.isPremium) {
+            _showRewardedAd(() {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StoryDetailScreen(
+                    story: story,
+                    onRead: _handleStoryRead,
+                    onFavorite: () => _toggleFavorite(story),
+                  ),
+                ),
+              );
+            });
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StoryDetailScreen(
+                  story: story,
+                  onRead: _handleStoryRead,
+                  onFavorite: () => _toggleFavorite(story),
+                ),
+              ),
+            );
+          }
+        },
+        child: Column(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.asset(
+                story.imagePath,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 150,
+                  color: Colors.amber[100],
+                  child: Icon(Icons.image, size: 50),
+                ),
+              ),
+            ),
+            ListTile(
+              title: Text(story.title, style: Theme.of(context).textTheme.headline6),
+              subtitle: story.isPremium 
+                  ? Row(
+                      children: [
+                        Icon(Icons.star, color: Colors.amber, size: 16),
+                        SizedBox(width: 4),
+                        Text('قصة مميزة', style: TextStyle(color: Colors.amber)),
+                      ],
+                    )
+                  : null,
+              trailing: IconButton(
+                icon: Icon(
+                  story.isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: story.isFavorite ? Colors.red : null,
+                ),
+                onPressed: () => _toggleFavorite(story),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class StoryDetailScreen extends StatefulWidget {
+  final Story story;
+  final VoidCallback onRead;
+  final VoidCallback onFavorite;
+
+  StoryDetailScreen({
+    required this.story,
+    required this.onRead,
+    required this.onFavorite,
+  });
+
+  @override
+  _StoryDetailScreenState createState() => _StoryDetailScreenState();
+}
+
+class _StoryDetailScreenState extends State<StoryDetailScreen> {
+  late AudioPlayer audioPlayer;
+  bool isPlaying = false;
+  bool hasRead = false;
+
+  @override
+  void initState() {
+    super.initState();
+    audioPlayer = AudioPlayer();
+    audioPlayer.onPlayerStateChanged.listen((state) {
+      setState(() {
+        isPlaying = state == PlayerState.playing;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _toggleAudio() {
+    if (isPlaying) {
+      audioPlayer.pause();
+    } else {
+      audioPlayer.play(AssetSource(widget.story.audioPath));
+      if (!hasRead) {
+        widget.onRead();
+        hasRead = true;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.story.title),
+        actions: [
+          IconButton(
+            icon: Icon(
+              widget.story.isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: widget.story.isFavorite ? Colors.red : null,
+            ),
+            onPressed: () {
+              widget.onFavorite();
+              setState(() {});
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Hero(
+              tag: 'image-${widget.story.id}',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  widget.story.imagePath,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    color: Colors.amber[100],
+                    child: Icon(Icons.image, size: 50),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            Text(
+              widget.story.content,
+              style: Theme.of(context).textTheme.bodyText1,
+              textAlign: TextAlign.justify,
+            ),
+            SizedBox(height: 30),
+            FloatingActionButton(
+              onPressed: _toggleAudio,
+              child: Icon(isPlaying ? Icons.pause : Icons.volume_up),
+              backgroundColor: Colors.amber,
+            ),
+            SizedBox(height: 20),
+            Text(
+              "اضغط على زر الصوت للاستماع للقصة",
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
